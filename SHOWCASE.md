@@ -105,11 +105,33 @@ Refactored the authentication controller to support a two-step verification flow
 > "Running `dna review inbound https://github.com/vasco-santos/code-dna/pull/42`.
 >
 > **Inbound Feedback Analysis**:
-> - **Reviewer @senior-eng**: *'We should use a constant-time comparison for the TOTP tokens to prevent timing attacks.'*
-> - **Architect Analysis**: This is a critical security idiom. I've drafted a fix using `crypto.timingSafeEqual`.
-> - **Action**: I'm updating `decisions.md` with this security pivot and recording the fix in the discussion log.
+> Reviewer **@senior-eng** noted: *'We should use a constant-time comparison for the TOTP tokens to prevent timing attacks.'*
 >
-> Fix applied. PR updated and ADR recorded."
+> **Interpretation**: The reviewer is concerned about timing attacks where an attacker guesses the token character-by-character based on response time. To fix this, we need a comparison that always takes the same amount of time regardless of how many characters match.
+>
+> **Proposed Directions**:
+>
+> **Option A: Node.js Crypto (Recommended)**
+> Use the native `crypto.timingSafeEqual`. This is the most secure and idiomatic way in Node.js.
+> ```typescript
+> import crypto from 'crypto';
+> const match = crypto.timingSafeEqual(Buffer.from(input), Buffer.from(stored));
+> ```
+>
+> **Option B: Manual XOR Loop**
+> A manual loop that doesn't short-circuit. Good if we want to avoid `Buffer` overhead for small strings.
+>
+> **Option C: Library-level verification**
+> Check if `speakeasy` has a built-in constant-time verification method we missed.
+>
+> **Recommendation**: Option A is the industry standard. Which direction should we take, vasco-santos?"
+
+**Developer (vasco-santos)**: *"Let's go with Option A. It's the most robust."*
+
+**Resident Architect (AI)**:
+> "Done. I've applied the fix using `crypto.timingSafeEqual`. 
+> I've also recorded the decision in our session: **'Switched to constant-time token comparison via Node.js crypto'**.
+> PR updated and manifest synced."
 
 ---
 
