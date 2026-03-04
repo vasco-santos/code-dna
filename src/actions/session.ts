@@ -35,7 +35,13 @@ function getPRTemplate(cwd: string): string | null {
   }
 
   // Final Fallback: Internal Code DNA Template
-  const internalTemplate = path.join(__dirname, '..', '..', 'templates', 'PULL_REQUEST_TEMPLATE.md');
+  const internalTemplate = path.join(
+    __dirname,
+    '..',
+    '..',
+    'templates',
+    'PULL_REQUEST_TEMPLATE.md',
+  );
   if (fs.existsSync(internalTemplate)) {
     return fs.readFileSync(internalTemplate, 'utf8');
   }
@@ -96,7 +102,7 @@ export function startSession(
         } else {
           fs.rmSync(sessionDir, { recursive: true, force: true });
         }
-      } catch (e) {
+      } catch {
         // Ignore
       }
     }
@@ -141,7 +147,7 @@ export function startSession(
   if (!fs.existsSync(prPath)) {
     const template = getPRTemplate(cwd);
     let content = template || `## Summary\n\n## Validation Results\n- `;
-    
+
     // Inject metadata into template
     content = content.replace(/\[SESSION_ID\]/g, sessionId);
     content = content.replace(/\[DNA_VERSION\]/g, dnaVersion);
@@ -258,9 +264,15 @@ export function getSessionStatus(cwd: string, sessionId?: string) {
   const decisionsPath = path.join(sessionDir, 'decisions.md');
   const metadataPath = path.join(sessionDir, 'metadata.json');
 
-  const manifest = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath, 'utf8') : 'No manifest found.';
-  const decisions = fs.existsSync(decisionsPath) ? fs.readFileSync(decisionsPath, 'utf8') : 'No decisions recorded.';
-  const metadata = fs.existsSync(metadataPath) ? JSON.parse(fs.readFileSync(metadataPath, 'utf8')) : {};
+  const manifest = fs.existsSync(manifestPath)
+    ? fs.readFileSync(manifestPath, 'utf8')
+    : 'No manifest found.';
+  const decisions = fs.existsSync(decisionsPath)
+    ? fs.readFileSync(decisionsPath, 'utf8')
+    : 'No decisions recorded.';
+  const metadata = fs.existsSync(metadataPath)
+    ? JSON.parse(fs.readFileSync(metadataPath, 'utf8'))
+    : {};
 
   return {
     id,
@@ -270,7 +282,12 @@ export function getSessionStatus(cwd: string, sessionId?: string) {
   };
 }
 
-export function writeSessionDoc(cwd: string, sessionId: string | undefined, filename: string, content: string) {
+export function writeSessionDoc(
+  cwd: string,
+  sessionId: string | undefined,
+  filename: string,
+  content: string,
+) {
   const id = sessionId || getActiveSessionId(cwd);
   if (!id) throw new Error('No session ID provided and no active session found.');
 

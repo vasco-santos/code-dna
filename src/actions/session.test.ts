@@ -23,10 +23,7 @@ describe('Session Actions', () => {
 
       expect(result.version).toBe(1);
       expect(result.filename).toBe('plan.v1.md');
-      expect(fs.writeFileSync).toHaveBeenCalledWith(
-        path.join(sessionDir, 'plan.v1.md'),
-        'content',
-      );
+      expect(fs.writeFileSync).toHaveBeenCalledWith(path.join(sessionDir, 'plan.v1.md'), 'content');
     });
 
     it('should increment version correctly', () => {

@@ -96,7 +96,9 @@ export async function reviewPR(prLink: string, mode: 'inbound' | 'outbound' = 'o
       const cliMessage = cliError instanceof Error ? cliError.message : String(cliError);
       const match = prLink.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
       if (!match)
-        throw new Error(`Invalid PR Link: ${prLink}. CLI Error: ${cliMessage}`);
+        throw new Error(`Invalid PR Link: ${prLink}. CLI Error: ${cliMessage}`, {
+          cause: cliError,
+        });
 
       const [, owner, repo, number] = match;
       const headers: Record<string, string> = {
@@ -111,7 +113,9 @@ export async function reviewPR(prLink: string, mode: 'inbound' | 'outbound' = 'o
       ]);
 
       if (!apiRes.ok)
-        throw new Error(`GitHub API failed (${apiRes.status}). CLI Error: ${cliMessage}`);
+        throw new Error(`GitHub API failed (${apiRes.status}). CLI Error: ${cliMessage}`, {
+          cause: cliError,
+        });
 
       const apiPr = (await apiRes.json()) as any; // Cast as any for raw fetch mapping
       pr = {

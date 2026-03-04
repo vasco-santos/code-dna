@@ -42,7 +42,7 @@ export function initContext(cwd: string) {
       const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
 
       archContent += `\n### Auto-discovered (NPM)\n- Name: ${pkg.name}\n`;
-      
+
       if (deps['express']) archContent += `- Framework: Express.js\n`;
       if (deps['fastify']) archContent += `- Framework: Fastify\n`;
       if (deps['next']) archContent += `- Framework: Next.js\n`;
@@ -52,7 +52,7 @@ export function initContext(cwd: string) {
 
       if (deps['vitest']) idiomsContent += `\n### Auto-discovered\n- Test Runner: Vitest\n`;
       else if (deps['jest']) idiomsContent += `\n### Auto-discovered\n- Test Runner: Jest\n`;
-      
+
       if (deps['eslint']) idiomsContent += `- Linter: ESLint\n`;
       if (deps['prettier']) idiomsContent += `- Formatter: Prettier\n`;
 

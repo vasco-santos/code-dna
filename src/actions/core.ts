@@ -81,7 +81,8 @@ export function initRepo(cwd: string) {
     return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
   };
 
-  const residentArchitect = getTemplate('RESIDENT_ARCHITECT') || '# Resident Architect Template Not Found';
+  const residentArchitect =
+    getTemplate('RESIDENT_ARCHITECT') || '# Resident Architect Template Not Found';
   const copilotContent = getTemplate('COPILOT') || residentArchitect;
   const cursorContent = getTemplate('CURSOR') || residentArchitect;
   const windsurfContent = getTemplate('WINDSURF') || residentArchitect;
