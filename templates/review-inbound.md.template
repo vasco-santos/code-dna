@@ -1,0 +1,9 @@
+### 📥 Inbound Review: Formal Pattern
+For each relevant piece of feedback in the PR (reviews/comments), please provide:
+1. **Review Comment**: Quote the original feedback.
+2. **Affected Snippet**: Show the code block being discussed.
+3. **AI Understanding**: Briefly explain the technical concern or request.
+4. **Suggestions**:
+   - **Option A (Standard Compliant)**: Pros/Cons.
+   - **Option B (Minimal Change)**: Pros/Cons.
+5. **Resolution**: State which Global Standard (DNA Strand) guides the fix.

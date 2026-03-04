@@ -1,0 +1,6 @@
+[submodule "skills/mcollina-skills"]
+	path = skills/mcollina-skills
+	url = https://github.com/mcollina/skills.git
+[submodule "skills/superpowers"]
+	path = skills/superpowers
+	url = https://github.com/obra/superpowers.git

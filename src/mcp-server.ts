@@ -1,0 +1,243 @@
+#!/usr/bin/env node
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+import {
+  initRepo,
+  startSession,
+  recordDecision,
+  reviewPR,
+  writeSessionDoc,
+  cleanupSession,
+  initContext,
+} from './actions';
+import fs from 'fs';
+import path from 'path';
+
+const STANDARDS_ROOT = path.resolve(__dirname, '..');
+const CORE_DIR = path.join(STANDARDS_ROOT, 'core');
+
+const server = new Server(
+  {
+    name: 'code-dna',
+    version: '1.1.0',
+  },
+  {
+    capabilities: {
+      tools: {},
+      resources: {},
+    },
+  },
+);
+
+/**
+ * Resources: Expose our Markdown Engineering DNA as readable resources
+ */
+server.setRequestHandler(ListResourcesRequestSchema, async () => {
+  const files = fs.readdirSync(CORE_DIR);
+  return {
+    resources: files.map((file) => ({
+      uri: `dna://${file.replace('.md', '')}`,
+      name: `Engineering DNA: ${file}`,
+      mimeType: 'text/markdown',
+      description: `Global playbook for ${file}`,
+    })),
+  };
+});
+
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const name = request.params.uri.replace('dna://', '');
+  const filePath = path.join(CORE_DIR, `${name}.md`);
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`DNA resource ${name} not found`);
+  }
+
+  return {
+    contents: [
+      {
+        uri: request.params.uri,
+        mimeType: 'text/markdown',
+        text: fs.readFileSync(filePath, 'utf8'),
+      },
+    ],
+  };
+});
+
+/**
+ * Tools: Expose our actions
+ */
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return {
+    tools: [
+      {
+        name: 'init_repo',
+        description: 'Initialize a repository with Global Engineering DNA (symlinks)',
+        inputSchema: { type: 'object', properties: {} },
+      },
+      {
+        name: 'init_context',
+        description: 'Initialize or sync repository-specific context files (architecture, idioms, devops)',
+        inputSchema: { type: 'object', properties: {} },
+      },
+      {
+        name: 'start_session',
+        description: 'Start a new DNA session with ADR and PR tracking. Supports multi-repo symlinking.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Short descriptive name for the session' },
+            mainRepoPath: {
+              type: 'string',
+              description:
+                'Optional: Path to the main repository if this is a linked session (will symlink).',
+            },
+          },
+          required: ['name'],
+        },
+      },
+      {
+        name: 'write_session_doc',
+        description: 'Write a document to the session folder with automatic versioning (v1, v2, etc.)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'The ID of the active session' },
+            filename: { type: 'string', description: "The base filename (e.g., 'rfc.md' or 'plan')" },
+            content: { type: 'string', description: 'The markdown content to write' },
+          },
+          required: ['sessionId', 'filename', 'content'],
+        },
+      },
+      {
+        name: 'cleanup_session',
+        description: 'Cleanup old versions of session documents, keeping only the most recent ones.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'The ID of the active session' },
+            keepLast: {
+              type: 'number',
+              description: 'Number of recent versions to keep (default: 3)',
+            },
+          },
+          required: ['sessionId'],
+        },
+      },
+      {
+        name: 'record_decision',
+        description: 'Record an architectural decision in an active session log',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'The ID of the active session' },
+            decision: { type: 'string', description: 'The rationale/decision to record' },
+          },
+          required: ['sessionId', 'decision'],
+        },
+      },
+      {
+        name: 'review_pr',
+        description:
+          'Fetch PR details, diff, and feedback for architectural review (inbound or outbound)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            prLink: { type: 'string', description: 'The URL or ID of the PR to review' },
+            mode: {
+              type: 'string',
+              enum: ['inbound', 'outbound'],
+              description: "Review mode: 'inbound' (analyzing feedback/fixing) or 'outbound' (first-pass audit)",
+            },
+          },
+          required: ['prLink'],
+        },
+      },
+    ],
+  };
+});
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+  const cwd = process.cwd();
+
+  switch (name) {
+    case 'init_repo':
+      return { content: [{ type: 'text', text: initRepo(cwd) }] };
+
+    case 'init_context':
+      return { content: [{ type: 'text', text: initContext(cwd) }] };
+
+    case 'start_session':
+      const session = startSession(cwd, (args as any).name, (args as any).mainRepoPath);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `📓 DNA Session started: ${session.sessionId}\n📁 Logs: ${
+              session.logPath
+            }\n🔗 Mode: ${session.mode}${
+              (session as any).mainPath ? ` (Main: ${(session as any).mainPath})` : ''
+            }`,
+          },
+        ],
+      };
+
+    case 'write_session_doc':
+      const doc = writeSessionDoc(
+        cwd,
+        (args as any).sessionId,
+        (args as any).filename,
+        (args as any).content,
+      );
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `📄 DNA Document written: ${doc.filename}\n📍 Path: ${doc.path}\n🔢 Version: ${doc.version}`,
+          },
+        ],
+      };
+
+    case 'cleanup_session':
+      const cleanup = cleanupSession(cwd, (args as any).sessionId, (args as any).keepLast);
+      return { content: [{ type: 'text', text: cleanup.message }] };
+
+    case 'record_decision':
+      return {
+        content: [
+          {
+            type: 'text',
+            text: recordDecision(cwd, (args as any).sessionId, (args as any).decision),
+          },
+        ],
+      };
+
+    case 'review_pr':
+      const reviewResult = await reviewPR((args as any).prLink, (args as any).mode || 'outbound');
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(reviewResult, null, 2),
+          },
+        ],
+      };
+
+    default:
+      throw new Error(`Unknown tool: ${name}`);
+  }
+});
+
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error('🚀 Code DNA MCP Server running on stdio');
+}
+
+main().catch(console.error);

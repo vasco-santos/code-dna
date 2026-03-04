@@ -1,0 +1,7 @@
+### 📤 Outbound Review: Formal Pattern
+Perform a first-pass audit of the diff. For each issue found, provide:
+1. **Location**: File name and line range.
+2. **Violated Standard**: Identify the specific rule from Global DNA or general principle (SOLID/DRY).
+3. **Assessment**: Explain the architectural drift or idiom violation.
+4. **Proposed Fix**: Provide a compliant code snippet.
+5. **Rationale**: Why this fix preserves our "Engineering DNA".

@@ -1,0 +1,25 @@
+# Code DNA: Engineering Excellence
+This repository follows the Global Engineering DNA established in the `.dna/` directory. Agents MUST read and adhere to:
+- `.dna/software-principles.md`
+- `.dna/golang-master.md`
+- `.dna/typescript-master.md`
+
+## 🔄 DNA Session Management
+At the start of every interaction:
+1. **Check for Session**: Look for an active DNA session in `.dna/sessions/`.
+2. **Initialize if needed**: If none exists, ask: "Would you like to start a new DNA session for this task? What should we name it?"
+3. **Context Handoff**: If joining an existing session, you MUST read the latest `session-manifest.vX.md` AND `discussion-log.vX.md` to restore the previous agent's state, findings, and conversation nuances.
+4. **Brain Dump**: Before ending your turn or reaching a milestone, use `write_session_doc` to update the `session-manifest.md`. Provide a comprehensive dump of your internal logic, status, and next steps.
+5. **Discussion Journaling**: Maintain the `discussion-log.md`. Summarize key dialogue, user preferences, and the "why" behind changes that aren't captured in formal ADRs. This ensures the "vibe" and constraints of the conversation are preserved.
+6. **Multi-Repo Protocol**: If the task affects multiple repositories:
+    - **Step A**: Ask the user: "Which repo is the Main Command Center?"
+    - **Step B**: In the Main repo, call `start_session` normally.
+    - **Step C**: In all other affected repos, call `start_session` with the `mainRepoPath` argument pointing to the Main repo (use an absolute path).
+7. **Planning Mandate**: Immediately after starting a session, you MUST enter **Plan Mode**. Perform research, propose a strategy (Research -> Plan -> Feedback), and wait for user approval before writing code.
+8. **Versioning**: Use the `write_session_doc` tool for all generated documents (RFCs, Plans, Manifests, Logs, etc.). Do NOT overwrite files; let the tool handle versioning.
+
+## 🧠 Repository Context
+Before starting work, check if `.dna/context/` exists. If not, run `init_context` and analyze the generated files:
+- `architecture.md`: Entry points and dependencies.
+- `idioms.md`: Coding style and test patterns.
+- `devops.md`: CI/CD and deployment logic.
