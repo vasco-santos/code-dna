@@ -48,8 +48,9 @@ export function initRepo(cwd: string) {
       try {
         fs.symlinkSync(src, dest);
         results.push(`🔗 Symlinked core/${file}`);
-      } catch (err: any) {
-        results.push(`❌ Failed to symlink core/${file}: ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        results.push(`❌ Failed to symlink core/${file}: ${message}`);
       }
     });
   }
@@ -67,35 +68,66 @@ export function initRepo(cwd: string) {
       try {
         fs.symlinkSync(src, dest);
         results.push(`🔗 Symlinked skills/${skill}`);
-      } catch (err: any) {
-        results.push(`❌ Failed to symlink skills/${skill}: ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        results.push(`❌ Failed to symlink skills/${skill}: ${message}`);
       }
     });
   }
 
   // 3. Create Entry Points for AI Tools
-  const templatePath = path.join(TEMPLATES_DIR, 'GEMINI.md.template');
-  const geminiContent = fs.existsSync(templatePath)
-    ? fs.readFileSync(templatePath, 'utf8')
-    : '# Code DNA initialization failed: Template not found';
+  const getTemplate = (name: string) => {
+    const p = path.join(TEMPLATES_DIR, `${name}.md.template`);
+    return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : null;
+  };
+
+  const residentArchitect = getTemplate('RESIDENT_ARCHITECT') || '# Resident Architect Template Not Found';
+  const copilotContent = getTemplate('COPILOT') || residentArchitect;
+  const cursorContent = getTemplate('CURSOR') || residentArchitect;
+  const windsurfContent = getTemplate('WINDSURF') || residentArchitect;
+  const codexContent = getTemplate('CODEX') || residentArchitect;
+  const claudeContent = getTemplate('CLAUDE') || residentArchitect;
 
   // Gemini CLI Entry Point
-  const geminiMd = path.join(cwd, 'GEMINI.md');
-  fs.writeFileSync(geminiMd, geminiContent);
-  results.push('📄 Updated GEMINI.md entry point');
+  fs.writeFileSync(path.join(cwd, 'GEMINI.md'), residentArchitect);
+  results.push('📄 Updated GEMINI.md');
 
   // GitHub Copilot Entry Point
   const copilotDir = path.join(cwd, '.github');
-  const copilotPath = path.join(copilotDir, 'copilot-instructions.md');
   if (!fs.existsSync(copilotDir)) fs.mkdirSync(copilotDir);
-  fs.writeFileSync(copilotPath, geminiContent);
-  results.push('🐙 Updated .github/copilot-instructions.md entry point');
+  fs.writeFileSync(path.join(copilotDir, 'copilot-instructions.md'), copilotContent);
+  results.push('🐙 Updated .github/copilot-instructions.md');
+
+  // Cursor Entry Point
+  fs.writeFileSync(path.join(cwd, '.cursorrules'), cursorContent);
+  results.push('🖱️ Updated .cursorrules');
+
+  // Windsurf Entry Point
+  fs.writeFileSync(path.join(cwd, '.windsurfrules'), windsurfContent);
+  results.push('🏄 Updated .windsurfrules');
+
+  // Codex Entry Point
+  fs.writeFileSync(path.join(cwd, '.codexrules'), codexContent);
+  results.push('📜 Updated .codexrules');
+
+  // Claude Code Entry Point
+  fs.writeFileSync(path.join(cwd, 'CLAUDE.md'), claudeContent);
+  results.push('🤖 Updated CLAUDE.md');
 
   // 4. Git Hygiene: Add to .git/info/exclude
   const gitExclude = path.join(cwd, '.git', 'info', 'exclude');
   if (fs.existsSync(gitExclude)) {
     const content = fs.readFileSync(gitExclude, 'utf8');
-    const linesToAdd = ['.dna/', 'GEMINI.md', '.github/copilot-instructions.md'];
+    const linesToAdd = [
+      '.dna/',
+      'GEMINI.md',
+      '.github/copilot-instructions.md',
+      '.cursorrules',
+      '.windsurfrules',
+      '.codexrules',
+      'CLAUDE.md',
+      'AGENTS.md',
+    ];
 
     let updatedContent = content;
     if (updatedContent.length > 0 && !updatedContent.endsWith('\n')) {

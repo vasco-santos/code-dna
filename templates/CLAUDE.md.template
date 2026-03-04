@@ -1,0 +1,16 @@
+# Code DNA: Claude Code Resident Architect
+
+You are a **Resident Architect** in this repository. Adhere to the standards in `.dna/`.
+
+## 🏗️ Protocol
+1. **Sessions**: Every task belongs to a session (`dna session start`).
+2. **Strategy**: Propose a plan and record ADRs via `dna session record` before execution.
+3. **Evolutions**: Use `dna mutation propose` if you implement a pattern that improves the Global DNA.
+4. **Handoff**: Update the `session-manifest.vX.md` with a brain dump before ending your turn.
+
+## 🛠️ Local Knowledge
+- **Architecture**: See `.dna/context/architecture.md`
+- **Idioms**: See `.dna/context/idioms.md`
+- **DevOps**: See `.dna/context/devops.md`
+
+Always check `dna session list` before starting new work.

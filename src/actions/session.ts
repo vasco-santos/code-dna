@@ -34,19 +34,44 @@ function getPRTemplate(cwd: string): string | null {
     }
   }
 
+  // Final Fallback: Internal Code DNA Template
+  const internalTemplate = path.join(__dirname, '..', '..', 'templates', 'PULL_REQUEST_TEMPLATE.md');
+  if (fs.existsSync(internalTemplate)) {
+    return fs.readFileSync(internalTemplate, 'utf8');
+  }
+
   return null;
 }
 
-export function startSession(cwd: string, name: string, mainRepoPath?: string) {
+export function startSession(
+  cwd: string,
+  name: string,
+  mainRepoPath?: string,
+  metadata?: { tool?: string; externalId?: string },
+) {
   const now = new Date();
   const timestamp = now.toISOString().replace(/[-T:]/g, '').slice(0, 12);
   const sessionId = `${timestamp}-${name.replace(/\s+/g, '-')}`;
   const dnaSessionsDir = path.join(cwd, '.dna', 'sessions');
   const sessionDir = path.join(dnaSessionsDir, sessionId);
 
+  // Load package.json for versioning
+  let dnaVersion = 'unknown';
+  try {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'),
+    );
+    dnaVersion = pkg.version;
+  } catch {
+    // Ignore
+  }
+
   if (!fs.existsSync(dnaSessionsDir)) {
     fs.mkdirSync(dnaSessionsDir, { recursive: true });
   }
+
+  // Persistent active session marker (hidden)
+  fs.writeFileSync(path.join(cwd, '.dna', '.session'), sessionId);
 
   if (mainRepoPath) {
     const absoluteMainPath = path.isAbsolute(mainRepoPath)
@@ -81,7 +106,7 @@ export function startSession(cwd: string, name: string, mainRepoPath?: string) {
       return {
         sessionId,
         logPath: `.dna/sessions/${sessionId}/`,
-        mode: 'linked',
+        mode: 'linked' as const,
         mainPath: absoluteMainPath,
       };
     } catch (err: any) {
@@ -97,6 +122,17 @@ export function startSession(cwd: string, name: string, mainRepoPath?: string) {
   const prPath = path.join(sessionDir, 'draft-pr.md');
   const manifestPath = path.join(sessionDir, 'session-manifest.v1.md');
   const discussionPath = path.join(sessionDir, 'discussion-log.v1.md');
+  const metadataPath = path.join(sessionDir, 'metadata.json');
+
+  const sessionMetadata = {
+    sessionId,
+    dnaVersion,
+    startedAt: now.toISOString(),
+    tool: metadata?.tool || 'dna-cli',
+    externalId: metadata?.externalId,
+  };
+
+  fs.writeFileSync(metadataPath, JSON.stringify(sessionMetadata, null, 2));
 
   if (!fs.existsSync(decisionsPath)) {
     fs.writeFileSync(decisionsPath, `# DNA Session ADR: ${name}\n\n## Decisions\n- `);
@@ -104,12 +140,12 @@ export function startSession(cwd: string, name: string, mainRepoPath?: string) {
 
   if (!fs.existsSync(prPath)) {
     const template = getPRTemplate(cwd);
-    let content = `# PR Description: ${name}\n\n`;
-    if (template) {
-      content += `> [!NOTE]\n> Using project PULL_REQUEST_TEMPLATE.md\n\n${template}`;
-    } else {
-      content += `## Summary\n\n## Validation Results\n- `;
-    }
+    let content = template || `## Summary\n\n## Validation Results\n- `;
+    
+    // Inject metadata into template
+    content = content.replace(/\[SESSION_ID\]/g, sessionId);
+    content = content.replace(/\[DNA_VERSION\]/g, dnaVersion);
+
     fs.writeFileSync(prPath, content);
   }
 
@@ -158,10 +194,89 @@ This file preserves the agent's internal state. Update it before ending a turn.
   };
 }
 
-export function writeSessionDoc(cwd: string, sessionId: string, filename: string, content: string) {
+export function listSessions(cwd: string) {
+  const sessionsDir = path.join(cwd, '.dna', 'sessions');
+  if (!fs.existsSync(sessionsDir)) return [];
+
+  const sessions = fs.readdirSync(sessionsDir);
+  const activeSessionId = getActiveSessionId(cwd);
+
+  return sessions
+    .filter((s) => fs.statSync(path.join(sessionsDir, s)).isDirectory())
+    .map((id) => {
+      const metadataPath = path.join(sessionsDir, id, 'metadata.json');
+      let name = id;
+      let startedAt = '';
+
+      if (fs.existsSync(metadataPath)) {
+        try {
+          const meta = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+          startedAt = meta.startedAt;
+          // Extract name from ID (timestamp-name)
+          const parts = id.split('-');
+          if (parts.length > 1) name = parts.slice(1).join('-');
+        } catch {
+          // Ignore
+        }
+      }
+
+      return {
+        id,
+        name,
+        startedAt,
+        isActive: id === activeSessionId,
+      };
+    })
+    .sort((a, b) => b.id.localeCompare(a.id));
+}
+
+export function getActiveSessionId(cwd: string): string | null {
+  const activePath = path.join(cwd, '.dna', '.session');
+  if (fs.existsSync(activePath)) {
+    return fs.readFileSync(activePath, 'utf8').trim();
+  }
+  return null;
+}
+
+export function switchSession(cwd: string, sessionId: string) {
   const sessionDir = path.join(cwd, '.dna', 'sessions', sessionId);
   if (!fs.existsSync(sessionDir)) {
-    throw new Error(`DNA Session ${sessionId} not found.`);
+    throw new Error(`Session ${sessionId} not found.`);
+  }
+  fs.writeFileSync(path.join(cwd, '.dna', '.session'), sessionId);
+  return `✅ Switched to session: ${sessionId}`;
+}
+
+export function getSessionStatus(cwd: string, sessionId?: string) {
+  const id = sessionId || getActiveSessionId(cwd);
+  if (!id) throw new Error('No active session found. Provide an ID or start one.');
+
+  const sessionDir = path.join(cwd, '.dna', 'sessions', id);
+  if (!fs.existsSync(sessionDir)) throw new Error(`Session ${id} not found.`);
+
+  const manifestPath = path.join(sessionDir, 'session-manifest.v1.md');
+  const decisionsPath = path.join(sessionDir, 'decisions.md');
+  const metadataPath = path.join(sessionDir, 'metadata.json');
+
+  const manifest = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath, 'utf8') : 'No manifest found.';
+  const decisions = fs.existsSync(decisionsPath) ? fs.readFileSync(decisionsPath, 'utf8') : 'No decisions recorded.';
+  const metadata = fs.existsSync(metadataPath) ? JSON.parse(fs.readFileSync(metadataPath, 'utf8')) : {};
+
+  return {
+    id,
+    metadata,
+    manifestSummary: manifest.split('\n').slice(0, 15).join('\n'), // First 15 lines
+    decisionCount: (decisions.match(/^- /gm) || []).length,
+  };
+}
+
+export function writeSessionDoc(cwd: string, sessionId: string | undefined, filename: string, content: string) {
+  const id = sessionId || getActiveSessionId(cwd);
+  if (!id) throw new Error('No session ID provided and no active session found.');
+
+  const sessionDir = path.join(cwd, '.dna', 'sessions', id);
+  if (!fs.existsSync(sessionDir)) {
+    throw new Error(`DNA Session ${id} not found.`);
   }
 
   const baseName = filename.endsWith('.md') ? filename.slice(0, -3) : filename;
@@ -186,15 +301,18 @@ export function writeSessionDoc(cwd: string, sessionId: string, filename: string
 
   return {
     filename: newFilename,
-    path: `.dna/sessions/${sessionId}/${newFilename}`,
+    path: `.dna/sessions/${id}/${newFilename}`,
     version: nextVersion,
   };
 }
 
-export function cleanupSession(cwd: string, sessionId: string, keepLast: number = 3) {
-  const sessionDir = path.join(cwd, '.dna', 'sessions', sessionId);
+export function cleanupSession(cwd: string, sessionId: string | undefined, keepLast: number = 3) {
+  const id = sessionId || getActiveSessionId(cwd);
+  if (!id) throw new Error('No active session found.');
+
+  const sessionDir = path.join(cwd, '.dna', 'sessions', id);
   if (!fs.existsSync(sessionDir)) {
-    throw new Error(`DNA Session ${sessionId} not found.`);
+    throw new Error(`DNA Session ${id} not found.`);
   }
 
   const files = fs.readdirSync(sessionDir);
@@ -231,14 +349,17 @@ export function cleanupSession(cwd: string, sessionId: string, keepLast: number 
   };
 }
 
-export function recordDecision(cwd: string, sessionId: string, decision: string) {
-  const sessionDir = path.join(cwd, '.dna', 'sessions', sessionId);
+export function recordDecision(cwd: string, sessionId: string | undefined, decision: string) {
+  const id = sessionId || getActiveSessionId(cwd);
+  if (!id) throw new Error('No active session found.');
+
+  const sessionDir = path.join(cwd, '.dna', 'sessions', id);
   const decisionsPath = path.join(sessionDir, 'decisions.md');
 
   if (!fs.existsSync(decisionsPath)) {
-    throw new Error(`DNA Session ${sessionId} not found.`);
+    throw new Error(`DNA Session ${id} not found.`);
   }
 
   fs.appendFileSync(decisionsPath, `\n- ${decision}`);
-  return `✅ Decision recorded in ${sessionId}`;
+  return `✅ Decision recorded in ${id}`;
 }

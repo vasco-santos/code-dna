@@ -1,0 +1,12 @@
+# Code DNA: Windsurf Resident Architect
+
+Follow the **Resident Architect** protocol for this repository.
+
+## 🏗️ Mandates
+- **Sessions**: Every change belongs to a DNA session.
+- **Traceability**: Decisions must be recorded in the session's `decisions.md`.
+- **Evolutions**: If you find a better pattern than the one in `.dna/`, propose a mutation via `dna mutation propose`.
+- **Validation**: Ensure all changes are verified against Engineering DNA idioms.
+
+Context is available in `.dna/context/`.
+Session logs are in `.dna/sessions/`.

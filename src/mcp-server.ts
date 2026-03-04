@@ -25,7 +25,7 @@ const CORE_DIR = path.join(STANDARDS_ROOT, 'core');
 const server = new Server(
   {
     name: 'code-dna',
-    version: '1.1.0',
+    version: '1.0.0',
   },
   {
     capabilities: {
@@ -162,6 +162,34 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
+interface StartSessionArgs {
+  name: string;
+  mainRepoPath?: string;
+  tool?: string;
+  externalId?: string;
+}
+
+interface WriteSessionDocArgs {
+  sessionId: string;
+  filename: string;
+  content: string;
+}
+
+interface CleanupSessionArgs {
+  sessionId: string;
+  keepLast?: number;
+}
+
+interface RecordDecisionArgs {
+  sessionId: string;
+  decision: string;
+}
+
+interface ReviewPRArgs {
+  prLink: string;
+  mode?: 'inbound' | 'outbound';
+}
+
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
   const cwd = process.cwd();
@@ -173,8 +201,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case 'init_context':
       return { content: [{ type: 'text', text: initContext(cwd) }] };
 
-    case 'start_session':
-      const session = startSession(cwd, (args as any).name, (args as any).mainRepoPath);
+    case 'start_session': {
+      const { name: sessionName, mainRepoPath, tool, externalId } = args as unknown as StartSessionArgs;
+      const session = startSession(cwd, sessionName, mainRepoPath, { tool, externalId });
       return {
         content: [
           {
@@ -182,19 +211,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             text: `📓 DNA Session started: ${session.sessionId}\n📁 Logs: ${
               session.logPath
             }\n🔗 Mode: ${session.mode}${
-              (session as any).mainPath ? ` (Main: ${(session as any).mainPath})` : ''
+              'mainPath' in session && session.mainPath ? ` (Main: ${session.mainPath})` : ''
             }`,
           },
         ],
       };
+    }
 
-    case 'write_session_doc':
-      const doc = writeSessionDoc(
-        cwd,
-        (args as any).sessionId,
-        (args as any).filename,
-        (args as any).content,
-      );
+    case 'write_session_doc': {
+      const { sessionId, filename, content } = args as unknown as WriteSessionDocArgs;
+      const doc = writeSessionDoc(cwd, sessionId, filename, content);
       return {
         content: [
           {
@@ -203,23 +229,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       };
+    }
 
-    case 'cleanup_session':
-      const cleanup = cleanupSession(cwd, (args as any).sessionId, (args as any).keepLast);
+    case 'cleanup_session': {
+      const { sessionId, keepLast } = args as unknown as CleanupSessionArgs;
+      const cleanup = cleanupSession(cwd, sessionId, keepLast);
       return { content: [{ type: 'text', text: cleanup.message }] };
+    }
 
-    case 'record_decision':
+    case 'record_decision': {
+      const { sessionId, decision } = args as unknown as RecordDecisionArgs;
       return {
         content: [
           {
             type: 'text',
-            text: recordDecision(cwd, (args as any).sessionId, (args as any).decision),
+            text: recordDecision(cwd, sessionId, decision),
           },
         ],
       };
+    }
 
-    case 'review_pr':
-      const reviewResult = await reviewPR((args as any).prLink, (args as any).mode || 'outbound');
+    case 'review_pr': {
+      const { prLink, mode } = args as unknown as ReviewPRArgs;
+      const reviewResult = await reviewPR(prLink, mode || 'outbound');
       return {
         content: [
           {
@@ -228,6 +260,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       };
+    }
 
     default:
       throw new Error(`Unknown tool: ${name}`);

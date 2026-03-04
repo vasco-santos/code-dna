@@ -9,7 +9,23 @@ const MYAI_CONFIG = path.join(
   'config.json',
 );
 
-export function linkAuth() {
+interface PRData {
+  title: string;
+  body: string;
+  number: number;
+  baseRefName: string;
+  headRefName: string;
+  files: { path: string }[];
+  reviews: { body: string; state: string }[];
+  comments: { body: string }[];
+}
+
+interface AuthContext {
+  token: string | undefined;
+  ghPath: string;
+}
+
+export function linkAuth(): string {
   try {
     const token = execSync('gh auth token', {
       encoding: 'utf8',
@@ -22,12 +38,13 @@ export function linkAuth() {
 
     fs.writeFileSync(MYAI_CONFIG, JSON.stringify({ GITHUB_TOKEN: token }, null, 2));
     return `✅ Token linked and saved to ${MYAI_CONFIG}`;
-  } catch (err: any) {
-    return `❌ Failed to link token: ${err.message}`;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return `❌ Failed to link token: ${message}`;
   }
 }
 
-async function getAuthContext() {
+async function getAuthContext(): Promise<AuthContext> {
   let token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
 
   if (!token && fs.existsSync(MYAI_CONFIG)) {
@@ -66,7 +83,7 @@ export async function reviewPR(prLink: string, mode: 'inbound' | 'outbound' = 'o
     const { token, ghPath } = await getAuthContext();
     const env = { ...process.env, GH_TOKEN: token };
 
-    let pr: any;
+    let pr: PRData;
     let diff: string = '';
 
     try {
@@ -75,12 +92,11 @@ export async function reviewPR(prLink: string, mode: 'inbound' | 'outbound' = 'o
         execSync(`${ghPath} pr view ${prLink} --json ${fields}`, { encoding: 'utf8', env }),
       );
       diff = execSync(`${ghPath} pr diff ${prLink}`, { encoding: 'utf8', env });
-    } catch (cliError: any) {
+    } catch (cliError: unknown) {
+      const cliMessage = cliError instanceof Error ? cliError.message : String(cliError);
       const match = prLink.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
       if (!match)
-        throw new Error(`Invalid PR Link: ${prLink}. CLI Error: ${cliError.message}`, {
-          cause: cliError,
-        });
+        throw new Error(`Invalid PR Link: ${prLink}. CLI Error: ${cliMessage}`);
 
       const [, owner, repo, number] = match;
       const headers: Record<string, string> = {
@@ -95,11 +111,9 @@ export async function reviewPR(prLink: string, mode: 'inbound' | 'outbound' = 'o
       ]);
 
       if (!apiRes.ok)
-        throw new Error(`GitHub API failed (${apiRes.status}). CLI Error: ${cliError.message}`, {
-          cause: cliError,
-        });
+        throw new Error(`GitHub API failed (${apiRes.status}). CLI Error: ${cliMessage}`);
 
-      const apiPr = (await apiRes.json()) as any;
+      const apiPr = (await apiRes.json()) as any; // Cast as any for raw fetch mapping
       pr = {
         title: apiPr.title,
         body: apiPr.body,
@@ -138,10 +152,11 @@ export async function reviewPR(prLink: string, mode: 'inbound' | 'outbound' = 'o
         instructions,
       };
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     return {
       status: 'error',
-      message: `Failed to fetch PR: ${err.message}. Ensure 'gh' CLI is authenticated and the PR exists.`,
+      message: `Failed to fetch PR: ${message}. Ensure 'gh' CLI is authenticated and the PR exists.`,
     };
   }
 }

@@ -1,0 +1,11 @@
+# Code DNA: Codex Resident Architect
+
+Follow the **Resident Architect** protocol for this project.
+
+## 🧬 Engineering Protocol
+- **Traceability**: Use `dna session record` to log all architectural decisions.
+- **Context**: Refer to `.dna/context/` for architecture and idioms.
+- **Mutations**: Propose improvements to Global DNA via `dna mutation propose`.
+- **Validation**: Perform `dna review outbound` before finalizing work.
+
+Every task MUST be associated with a DNA session in `.dna/sessions/`.
