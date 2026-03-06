@@ -15,6 +15,8 @@ import {
   writeSessionDoc,
   cleanupSession,
   initContext,
+  checkDNAStatus,
+  resumeSession,
 } from './actions';
 import fs from 'fs';
 import path from 'path';
@@ -78,6 +80,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'init_repo',
         description: 'Initialize a repository with Global Engineering DNA (symlinks)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            mainRepoPath: {
+              type: 'string',
+              description: 'Optional: Path to the main repository to link DNA to',
+            },
+          },
+        },
+      },
+      {
+        name: 'check_status',
+        description: 'Check if the repository is initialized with DNA and if standards are up to date.',
         inputSchema: { type: 'object', properties: {} },
       },
       {
@@ -99,6 +114,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
           },
           required: ['name'],
+        },
+      },
+      {
+        name: 'resume_session',
+        description: 'Resume a DNA session and get back all context for handoff.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sessionId: { type: 'string', description: 'The ID of the session to resume' },
+          },
         },
       },
       {
@@ -195,11 +220,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const cwd = process.cwd();
 
   switch (name) {
-    case 'init_repo':
-      return { content: [{ type: 'text', text: initRepo(cwd) }] };
+    case 'init_repo': {
+      const { mainRepoPath } = args as { mainRepoPath?: string };
+      return { content: [{ type: 'text', text: initRepo(cwd, mainRepoPath) }] };
+    }
 
-    case 'init_context':
-      return { content: [{ type: 'text', text: initContext(cwd) }] };
+    case 'check_status':
+      return { content: [{ type: 'text', text: checkDNAStatus(cwd).message }] };
+
+    case 'init_context': {
+      const status = checkDNAStatus(cwd);
+      const context = initContext(cwd);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `${status.message}\n\n${context}`,
+          },
+        ],
+      };
+    }
 
     case 'start_session': {
       const { name: sessionName, mainRepoPath, tool, externalId } = args as unknown as StartSessionArgs;
@@ -213,6 +253,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }\n🔗 Mode: ${session.mode}${
               'mainPath' in session && session.mainPath ? ` (Main: ${session.mainPath})` : ''
             }`,
+          },
+        ],
+      };
+    }
+
+    case 'resume_session': {
+      const { sessionId } = args as { sessionId?: string };
+      const result = resumeSession(cwd, sessionId);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `${result.message}\n\n--- HANDOFF ---\n${result.handoff}\n\n--- MANIFEST ---\n${result.manifest}\n\n--- DECISIONS ---\n${result.decisions}`,
           },
         ],
       };

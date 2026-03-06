@@ -13,6 +13,8 @@ import {
   getSessionStatus,
   switchSession,
   proposeMutation,
+  saveSession,
+  resumeSession,
 } from './actions';
 
 const prog = sade('dna');
@@ -21,9 +23,10 @@ prog.version('1.0.0').describe('Code DNA: Experienced-level Engineering DNA for 
 
 prog
   .command('init')
+  .option('--main <path>', 'Link this repository to a main repository DNA')
   .describe('Initialize a repository with Global Engineering DNA')
-  .action(() => {
-    console.log(initRepo(process.cwd()));
+  .action((opts) => {
+    console.log(initRepo(process.cwd(), opts.main));
     console.log('✅ Code DNA initialized successfully!');
   });
 
@@ -117,6 +120,37 @@ prog
     const finalDecision = decision || id;
     try {
       console.log(recordDecision(process.cwd(), finalId, finalDecision));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`❌ ${message}`);
+    }
+  });
+
+prog
+  .command('session save [id] <brain_dump>')
+  .describe('Save the current session with a brain dump for handoff')
+  .action((id, brain_dump) => {
+    const finalId = brain_dump ? id : undefined;
+    const finalBrainDump = brain_dump || id;
+    try {
+      const result = saveSession(process.cwd(), finalId, finalBrainDump);
+      console.log(result.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`❌ ${message}`);
+    }
+  });
+
+prog
+  .command('session resume [id]')
+  .describe('Resume a session and load context documents')
+  .action((id) => {
+    try {
+      const result = resumeSession(process.cwd(), id);
+      console.log(`\n${result.message}\n`);
+      console.log(`--- HANDOFF ---\n${result.handoff}\n`);
+      console.log(`--- MANIFEST ---\n${result.manifest}\n`);
+      console.log(`--- DECISIONS ---\n${result.decisions}\n`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`❌ ${message}`);

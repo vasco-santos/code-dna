@@ -58,8 +58,6 @@ export function startSession(
   const now = new Date();
   const timestamp = now.toISOString().replace(/[-T:]/g, '').slice(0, 12);
   const sessionId = `${timestamp}-${name.replace(/\s+/g, '-')}`;
-  const dnaSessionsDir = path.join(cwd, '.dna', 'sessions');
-  const sessionDir = path.join(dnaSessionsDir, sessionId);
 
   // Load package.json for versioning
   let dnaVersion = 'unknown';
@@ -72,35 +70,44 @@ export function startSession(
     // Ignore
   }
 
+  const dnaDir = path.join(cwd, '.dna');
+  const dnaSessionsDir = path.join(dnaDir, 'sessions');
+
   if (!fs.existsSync(dnaSessionsDir)) {
     fs.mkdirSync(dnaSessionsDir, { recursive: true });
   }
 
   // Persistent active session marker (hidden)
-  fs.writeFileSync(path.join(cwd, '.dna', '.session'), sessionId);
+  fs.writeFileSync(path.join(dnaDir, '.session'), sessionId);
+
+  let targetSessionDir = path.join(dnaSessionsDir, sessionId);
+  let mode: 'main' | 'linked' = 'main';
+  let absoluteMainPath: string | undefined;
 
   if (mainRepoPath) {
-    const absoluteMainPath = path.isAbsolute(mainRepoPath)
+    absoluteMainPath = path.isAbsolute(mainRepoPath)
       ? mainRepoPath
       : path.resolve(cwd, mainRepoPath);
 
-    const mainSessionDir = path.join(absoluteMainPath, '.dna', 'sessions', sessionId);
+    const mainDnaSessionsDir = path.join(absoluteMainPath, '.dna', 'sessions');
+    const mainSessionDir = path.join(mainDnaSessionsDir, sessionId);
 
-    // AI Safety Check: Ensure main session actually exists
-    if (!fs.existsSync(mainSessionDir)) {
-      throw new Error(
-        `Main session folder not found at: ${mainSessionDir}. ` +
-          `You MUST call start_session in the Main repository (${absoluteMainPath}) before initializing linked repositories.`,
-      );
+    if (!fs.existsSync(mainDnaSessionsDir)) {
+      fs.mkdirSync(mainDnaSessionsDir, { recursive: true });
     }
 
-    if (fs.existsSync(sessionDir)) {
+    if (!fs.existsSync(mainSessionDir)) {
+      fs.mkdirSync(mainSessionDir, { recursive: true });
+    }
+
+    // Symlink current repo's session dir to the main repo's session dir
+    if (fs.existsSync(targetSessionDir)) {
       try {
-        const stats = fs.lstatSync(sessionDir);
+        const stats = fs.lstatSync(targetSessionDir);
         if (stats.isSymbolicLink()) {
-          fs.unlinkSync(sessionDir);
+          fs.unlinkSync(targetSessionDir);
         } else {
-          fs.rmSync(sessionDir, { recursive: true, force: true });
+          fs.rmSync(targetSessionDir, { recursive: true, force: true });
         }
       } catch {
         // Ignore
@@ -108,27 +115,34 @@ export function startSession(
     }
 
     try {
-      fs.symlinkSync(mainSessionDir, sessionDir, 'dir');
-      return {
-        sessionId,
-        logPath: `.dna/sessions/${sessionId}/`,
-        mode: 'linked' as const,
-        mainPath: absoluteMainPath,
-      };
+      // If targetSessionDir is already inside a symlinked .dna, we might be creating a link to itself
+      // Resolve absolute physical paths to compare
+      const realTargetParent = fs.realpathSync(dnaSessionsDir);
+      const realMainParent = fs.realpathSync(mainDnaSessionsDir);
+
+      if (realTargetParent !== realMainParent) {
+        fs.symlinkSync(mainSessionDir, targetSessionDir, 'dir');
+        mode = 'linked';
+      } else {
+        // We are already in the main repo's DNA (likely via a .dna symlink)
+        mode = 'main';
+      }
+      targetSessionDir = mainSessionDir; // All subsequent writes go to the actual folder
     } catch (err: any) {
       throw new Error(`Failed to symlink to main session: ${err.message}`, { cause: err });
     }
   }
 
-  if (!fs.existsSync(sessionDir)) {
-    fs.mkdirSync(sessionDir, { recursive: true });
+  // Ensure the physical session directory exists before writing files
+  if (!fs.existsSync(targetSessionDir)) {
+    fs.mkdirSync(targetSessionDir, { recursive: true });
   }
 
-  const decisionsPath = path.join(sessionDir, 'decisions.md');
-  const prPath = path.join(sessionDir, 'draft-pr.md');
-  const manifestPath = path.join(sessionDir, 'session-manifest.v1.md');
-  const discussionPath = path.join(sessionDir, 'discussion-log.v1.md');
-  const metadataPath = path.join(sessionDir, 'metadata.json');
+  const decisionsPath = path.join(targetSessionDir, 'decisions.md');
+  const prPath = path.join(targetSessionDir, 'draft-pr.md');
+  const manifestPath = path.join(targetSessionDir, 'session-manifest.v1.md');
+  const discussionPath = path.join(targetSessionDir, 'discussion-log.v1.md');
+  const metadataPath = path.join(targetSessionDir, 'metadata.json');
 
   const sessionMetadata = {
     sessionId,
@@ -196,9 +210,11 @@ This file preserves the agent's internal state. Update it before ending a turn.
   return {
     sessionId,
     logPath: `.dna/sessions/${sessionId}/`,
-    mode: 'main',
+    mode,
+    mainPath: absoluteMainPath,
   };
 }
+
 
 export function listSessions(cwd: string) {
   const sessionsDir = path.join(cwd, '.dna', 'sessions');
@@ -379,4 +395,113 @@ export function recordDecision(cwd: string, sessionId: string | undefined, decis
 
   fs.appendFileSync(decisionsPath, `\n- ${decision}`);
   return `✅ Decision recorded in ${id}`;
+}
+
+export function saveSession(cwd: string, sessionId: string | undefined, brainDump: string) {
+  const id = sessionId || getActiveSessionId(cwd);
+  if (!id) throw new Error('No active session found.');
+
+  const sessionDir = path.join(cwd, '.dna', 'sessions', id);
+  if (!fs.existsSync(sessionDir)) {
+    throw new Error(`DNA Session ${id} not found.`);
+  }
+
+  const metadataPath = path.join(sessionDir, 'metadata.json');
+  const decisionsPath = path.join(sessionDir, 'decisions.md');
+  const metadata = fs.existsSync(metadataPath)
+    ? JSON.parse(fs.readFileSync(metadataPath, 'utf8'))
+    : {};
+  const decisions = fs.existsSync(decisionsPath) ? fs.readFileSync(decisionsPath, 'utf8') : '';
+
+  const handoffContent = `# DNA Session Handoff: ${id}
+
+## 📊 Session Status
+- **Tool**: ${metadata.tool || 'unknown'}
+- **External ID**: ${metadata.externalId || 'none'}
+- **DNA Version**: ${metadata.dnaVersion || 'unknown'}
+- **Last Updated**: ${new Date().toISOString()}
+
+## 🧠 Brain Dump (Current Context)
+${brainDump}
+
+## 🏗️ Decisions Recorded
+${decisions}
+
+## 🚀 How to Resume
+1. Start a new AI chat window.
+2. Run \`dna session switch ${id}\`.
+3. Read this handoff file: \`.dna/sessions/${id}/handoff.vX.md\`.
+4. **CRITICAL**: Before starting work, the AI MUST ask the user 2-3 targeted questions to clarify any ambiguities in this handoff and confirm understanding of the next immediate steps.
+`;
+
+  const doc = writeSessionDoc(cwd, id, 'handoff', handoffContent);
+  return {
+    message: `✅ Session ${id} saved. Handoff document created: ${doc.filename}`,
+    handoffPath: doc.path,
+  };
+}
+
+export function resumeSession(cwd: string, sessionId: string | undefined) {
+  const id = sessionId || getActiveSessionId(cwd);
+  if (!id) throw new Error('No active session found.');
+
+  const sessionDir = path.join(cwd, '.dna', 'sessions', id);
+  if (!fs.existsSync(sessionDir)) {
+    throw new Error(`DNA Session ${id} not found.`);
+  }
+
+  // Switch to this session if it's not the active one
+  const activeId = getActiveSessionId(cwd);
+  if (id !== activeId) {
+    switchSession(cwd, id);
+  }
+
+  const files = fs.readdirSync(sessionDir);
+
+  const getLatestFile = (baseName: string) => {
+    const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const versionRegex = new RegExp(`^${escapedBase}\\.v(\\d+)\\.md$`);
+    let maxVersion = 0;
+    let latestFile = '';
+
+    files.forEach((f) => {
+      const match = f.match(versionRegex);
+      if (match) {
+        const v = parseInt(match[1], 10);
+        if (v > maxVersion) {
+          maxVersion = v;
+          latestFile = f;
+        }
+      }
+    });
+
+    return latestFile;
+  };
+
+  const handoffFile = getLatestFile('handoff');
+  const manifestFile = getLatestFile('session-manifest');
+  const decisionsFile = 'decisions.md';
+
+  const handoff = handoffFile
+    ? fs.readFileSync(path.join(sessionDir, handoffFile), 'utf8')
+    : 'No handoff file found.';
+  const manifest = manifestFile
+    ? fs.readFileSync(path.join(sessionDir, manifestFile), 'utf8')
+    : 'No manifest found.';
+  const decisions = fs.existsSync(path.join(sessionDir, decisionsFile))
+    ? fs.readFileSync(path.join(sessionDir, decisionsFile), 'utf8')
+    : 'No decisions found.';
+
+  return {
+    id,
+    handoff,
+    manifest,
+    decisions,
+    message: `🔄 Resuming session: ${id}. 
+
+### 🛑 Mandatory Resumption Protocol
+1. **Analyze the Context**: Read the Handoff, Manifest, and Decisions provided below.
+2. **Clarify Ambiguity**: Before executing any tools or modifying code, you MUST ask the user 2-3 specific questions to confirm your understanding of the current state and the goal of the next task.
+3. **Wait for Confirmation**: Proceed only after the user has validated your understanding.`,
+  };
 }

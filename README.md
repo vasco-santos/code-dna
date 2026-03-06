@@ -38,11 +38,30 @@ Every task is treated as a formal **DNA Session** to preserve the rationale behi
 *   **Auto-Versioning**: All plans, RFCs, and session documents are versioned (e.g., `plan.v1.md`) to preserve the evolution of thought.
 *   **Metadata**: Sessions track the DNA version, the driving tool, and external Chat IDs.
 
-### 🔗 Multi-Repo Workflows
-Code DNA supports complex tasks that span multiple repositories through a **Main/Linked** pattern:
-1.  **Main Repo**: The primary source of truth for the session.
-2.  **Linked Repos**: Secondary repositories affected by the task (using `dna session start --main /path/to/main`).
-3.  **Unified Context**: The engine symlinks the session folder across repositories, centralizing all ADRs and PR drafts.
+### 🔗 Multi-Repo & Worktree Workflows
+Code DNA supports complex tasks that span multiple repositories or use Git Worktrees through a **Main/Linked** pattern:
+
+1.  **Main Repo**: The primary source of truth for the session and architectural context.
+2.  **Linked Repos/Worktrees**: Secondary workspaces affected by the task.
+3.  **Unified Context**: The engine symlinks the session folder and the entire `.dna` configuration across workspaces, centralizing all ADRs, context, and PR drafts.
+
+#### Git Worktrees Support
+When working in a Git Worktree, you can link it back to the main repository to share all DNA state:
+```bash
+# 1. Create your worktree as usual
+git worktree add .worktrees/feature-branch -b feature-branch
+cd .worktrees/feature-branch
+
+# 2. Link the DNA to the main repository
+dna init --main ../..
+
+# 3. Start or switch to a session
+dna session start "my-feature"
+```
+**How it works**: `dna init --main` symlinks the worktree's `.dna/` directory to the main repository's `.dna/`. This means:
+- **Shared Sessions**: Sessions started in a worktree are physically stored in the main repo.
+- **Shared Context**: Improvements to `architecture.md` or `idioms.md` in one worktree are immediately visible everywhere.
+- **Agent Continuity**: AI agents (Gemini, Cursor, etc.) maintain full context as you move between worktrees.
 
 ## 🤖 Prompting the DNA: AI Incantations
 To get the most out of **Code DNA**, use these prompts with your AI assistant:
@@ -61,6 +80,12 @@ To get the most out of **Code DNA**, use these prompts with your AI assistant:
 
 ### 5. Automated Reviews
 > "Perform an outbound DNA review on PR #42. Focus specifically on whether the implementation adheres to our TypeScript 'Resident Architect' idioms and if any new patterns should be proposed as mutations."
+
+### 6. Saving Sessions for Handoff
+> "We've finished this part of the task. Please run `dna session save` with a detailed brain dump of our current context, pending tests, and next steps so I can resume from a fresh chat window later."
+
+### 7. Resuming Sessions
+> "I'm resuming a previous task. Please run `dna session resume` for the session ID '20260305-my-task'. Analyze the handoff and manifest carefully, and then ask me 2-3 clarifying questions about our next steps before you begin."
 
 ## 🤖 Model Agency via MCP (Model Context Protocol)
 Code DNA provides an MCP Server wrapper for the `dna` CLI, enabling:
@@ -106,6 +131,7 @@ npm link --force
 
 ### Available Tools
 *   `dna init`: Symlinks global DNA into the current repository.
+    *   **Pro Tip**: Run this again to update your repository when the Global DNA version changes.
 *   `dna init_context`: Analyzes the repo and initializes architectural context.
 *   `dna session start <name>`: Initializes a new DNA session.
     *   Use `--main /path/to/repo` to link this to another project's session.
@@ -113,6 +139,8 @@ npm link --force
 *   `dna session status [id]`: Shows the dashboard for a session (manifest, ADRs).
 *   `dna session switch <id>`: Sets the active session for the CLI.
 *   `dna session record [id] <decision>`: Records an architectural choice.
+*   `dna session save [id] <brain_dump>`: Saves the session with a handoff document for AI continuity.
+*   `dna session resume [id]`: Resumes a session, loads context, and triggers the mandatory clarification protocol.
 *   `dna session doc [id] <file> <content>`: Writes a versioned session document.
 *   `dna session cleanup [id]`: Cleans up old document versions.
 *   `dna mutation propose <title> <rationale>`: Queues a local improvement for the Global Hub.

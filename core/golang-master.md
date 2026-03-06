@@ -6,6 +6,13 @@
 *   **Context First:** Every asynchronous or network-bound function must accept `context.Context` as its first argument to support tracing, cancellation, and deadline propagation.
 
 ## 🏗️ Architecture & Patterns
+*   **Naming Conventions (Semantic Clarity):**
+    *   **Functions/Methods:** Follow the `<action><what><how>` pattern for clarity.
+        *   ✅ `fetchDataConcurrently`, `processOrderAsync`, `saveRecordSafely`
+        *   ❌ `fetchConcurrentData` (This implies fetching "concurrent data," not fetching data "concurrently").
+    *   **Exported Symbols:** Use `PascalCase`. Every exported symbol must have a doc comment starting with the symbol's name.
+    *   **Interfaces:** Use short, descriptive names ending in `-er` for single-method interfaces (e.g., `Reader`, `Writer`). For multi-method interfaces, use a noun representing the capability (e.g., `Store`, `Provider`).
+    *   **Errors:** Error variables should be prefixed with `Err` (e.g., `ErrNotFound`, `ErrUnauthorized`).
 *   **Project Layout:** Follow [golang-standards/project-layout](https://github.com/golang-standards/project-layout). Use `/internal` for private code and `/pkg` for reusable logic.
 *   **Functional Options Pattern:** Favor the Functional Options pattern for complex constructors instead of long parameter lists or complex `Config` structs (Mistake #11).
 *   **Interface Pollution:** Do not design with interfaces; discover them. Avoid "Interface Pollution" by only creating interfaces when multiple implementations exist or for decoupling external dependencies (Mistake #5).

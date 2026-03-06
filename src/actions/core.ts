@@ -9,16 +9,105 @@ export const TEMPLATES_DIR = path.join(STANDARDS_ROOT, 'templates');
 /**
  * Initializes a repository with Global Engineering DNA.
  * This includes symlinking core standards and setting up entry points for AI agents.
+ * If mainRepoPath is provided, it links the .dna directory to the main repository.
  */
-export function initRepo(cwd: string) {
+export function checkDNAStatus(cwd: string) {
+  const dnaDir = path.join(cwd, '.dna');
+  if (!fs.existsSync(dnaDir)) {
+    return {
+      status: 'missing',
+      message: '❌ Code DNA is not initialized in this repository. Run init_repo to get started.',
+    };
+  }
+
+  // Get global version
+  let globalVersion = 'unknown';
+  try {
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(STANDARDS_ROOT, 'package.json'), 'utf8'),
+    );
+    globalVersion = pkg.version;
+  } catch {
+    // Ignore
+  }
+
+  // Check active session version if any
+  const activePath = path.join(dnaDir, '.session');
+  if (fs.existsSync(activePath)) {
+    const sessionId = fs.readFileSync(activePath, 'utf8').trim();
+    const metadataPath = path.join(dnaDir, 'sessions', sessionId, 'metadata.json');
+    if (fs.existsSync(metadataPath)) {
+      try {
+        const meta = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+        const sessionVersion = meta.dnaVersion;
+
+        if (sessionVersion !== globalVersion && globalVersion !== 'unknown') {
+          return {
+            status: 'outdated',
+            currentVersion: sessionVersion,
+            latestVersion: globalVersion,
+            message: `⚠️ Your active session is using Code DNA v${sessionVersion}, but v${globalVersion} is available. Run init_repo to update your standards.`,
+          };
+        }
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
+  return {
+    status: 'ok',
+    version: globalVersion,
+    message: `✅ Code DNA v${globalVersion} is active and up to date.`,
+  };
+}
+
+export function initRepo(cwd: string, mainRepoPath?: string) {
   const results: string[] = [];
   const dnaDir = path.join(cwd, '.dna');
-  const dnaSkillsDir = path.join(dnaDir, 'skills');
 
-  if (!fs.existsSync(dnaDir)) {
-    fs.mkdirSync(dnaDir);
+  if (mainRepoPath) {
+    const absoluteMainPath = path.isAbsolute(mainRepoPath)
+      ? mainRepoPath
+      : path.resolve(cwd, mainRepoPath);
+
+    const mainDnaDir = path.join(absoluteMainPath, '.dna');
+
+    if (!fs.existsSync(mainDnaDir)) {
+      // Initialize the main repo if it doesn't exist
+      initRepo(absoluteMainPath);
+      results.push(`🏠 Initialized main repository at ${absoluteMainPath}`);
+    }
+
+    // Force clear existing .dna to replace with symlink
+    try {
+      const stats = fs.lstatSync(dnaDir);
+      if (stats.isDirectory() && !stats.isSymbolicLink()) {
+        fs.rmSync(dnaDir, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(dnaDir);
+      }
+    } catch {
+      // Doesn't exist
+    }
+
+    try {
+      fs.symlinkSync(mainDnaDir, dnaDir, 'dir');
+      results.push(`🔗 Linked .dna to ${absoluteMainPath}/.dna`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      results.push(`❌ Failed to link .dna: ${message}`);
+      // Fallback to local init if symlink fails
+      if (!fs.existsSync(dnaDir)) fs.mkdirSync(dnaDir);
+    }
+  } else {
+    if (!fs.existsSync(dnaDir)) {
+      fs.mkdirSync(dnaDir);
+    }
   }
-  if (!fs.existsSync(dnaSkillsDir)) {
+
+  const dnaSkillsDir = path.join(dnaDir, 'skills');
+  if (!fs.existsSync(dnaSkillsDir) && !mainRepoPath) {
     fs.mkdirSync(dnaSkillsDir);
   }
 
@@ -36,43 +125,46 @@ export function initRepo(cwd: string) {
     }
   };
 
-  // 1. Symlink Core files
-  if (fs.existsSync(CORE_DIR)) {
-    const coreFiles = fs.readdirSync(CORE_DIR);
-    coreFiles.forEach((file) => {
-      const src = path.join(CORE_DIR, file);
-      const dest = path.join(dnaDir, file);
+  // Skip symlinking core and skills if we linked the entire .dna folder
+  if (!mainRepoPath) {
+    // 1. Symlink Core files
+    if (fs.existsSync(CORE_DIR)) {
+      const coreFiles = fs.readdirSync(CORE_DIR);
+      coreFiles.forEach((file) => {
+        const src = path.join(CORE_DIR, file);
+        const dest = path.join(dnaDir, file);
 
-      forceClear(dest);
+        forceClear(dest);
 
-      try {
-        fs.symlinkSync(src, dest);
-        results.push(`🔗 Symlinked core/${file}`);
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        results.push(`❌ Failed to symlink core/${file}: ${message}`);
-      }
-    });
-  }
+        try {
+          fs.symlinkSync(src, dest);
+          results.push(`🔗 Symlinked core/${file}`);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          results.push(`❌ Failed to symlink core/${file}: ${message}`);
+        }
+      });
+    }
 
-  // 2. Symlink Skill directories
-  if (fs.existsSync(SKILLS_DIR)) {
-    const skills = fs.readdirSync(SKILLS_DIR);
-    skills.forEach((skill) => {
-      const src = path.join(SKILLS_DIR, skill);
-      const dest = path.join(dnaSkillsDir, skill);
-      if (skill.startsWith('.')) return;
+    // 2. Symlink Skill directories
+    if (fs.existsSync(SKILLS_DIR)) {
+      const skills = fs.readdirSync(SKILLS_DIR);
+      skills.forEach((skill) => {
+        const src = path.join(SKILLS_DIR, skill);
+        const dest = path.join(dnaSkillsDir, skill);
+        if (skill.startsWith('.')) return;
 
-      forceClear(dest);
+        forceClear(dest);
 
-      try {
-        fs.symlinkSync(src, dest);
-        results.push(`🔗 Symlinked skills/${skill}`);
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        results.push(`❌ Failed to symlink skills/${skill}: ${message}`);
-      }
-    });
+        try {
+          fs.symlinkSync(src, dest);
+          results.push(`🔗 Symlinked skills/${skill}`);
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : String(err);
+          results.push(`❌ Failed to symlink skills/${skill}: ${message}`);
+        }
+      });
+    }
   }
 
   // 3. Create Entry Points for AI Tools
