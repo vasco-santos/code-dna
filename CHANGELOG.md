@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-03-06
+
+### Added
+- **AI Tool & Permission Policy (`core/tool-policy.md`)**:
+    - Defined a "Safe-to-Execute" list for discovery/read commands (ls, git status, gh view, etc.) to reduce agent friction.
+    - Added "Restricted" list for operations requiring explicit user consent.
+- **Go Standard Workflows**: Added standard linting (`golangci-lint` with specific config) and testing (`make test`) patterns to `core/golang-master.md`.
+
+### Changed
+- Updated `RESIDENT_ARCHITECT.md.template` to include mandates for **Tool Autonomy** and **Project Workflow** awareness.
+
 ## [1.1.0] - 2026-03-06
 
 ### Added

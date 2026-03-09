@@ -25,11 +25,16 @@
     *   Nil vs. Empty: Prefer returning `nil` slices for empty results unless the caller requires a non-nil slice (e.g., for specific JSON marshalling) (Mistake #22).
 *   **Control Structures:** Avoid `defer` inside loops (Mistake #35). Use a wrapper function or explicit closing to prevent resource exhaustion.
 
-## ⚡ Concurrency & Context
-*   **Goroutine Lifecycle:** Never start a goroutine without knowing how it will stop (Mistake #62). 
-*   **Context Propagation:** Do not pass a `nil` Context; use `context.TODO()` if unsure. Avoid using `context.WithValue` for domain logic; it is for request-scoped metadata (tracing IDs, etc.) (Mistake #60).
+## 🛡️ Security & Quality
 *   **Race Conditions:** Always use the `-race` detector. Be wary of capturing loop variables in goroutines; explicitly pass them as arguments (Mistake #63).
 *   **Channels vs. Mutexes:** Channels for orchestration/signaling; Mutexes for state protection (Mistake #57).
+
+## 🚀 Standard Workflows
+*   **Linting:** Favor `golangci-lint` for static analysis.
+    *   **Standard Command**: `golangci-lint run --config=./.github/linters/.golangci.yml --timeout=5m`
+*   **Testing:** Use the project's `Makefile` for orchestrating test suites.
+    *   **Standard Command**: `make test`
+    *   **Coverage**: When possible, use `make test-coverage` or similar to generate reports.
 
 ## ⚠️ The TS/JS to Go Translation Guide (Polyglot Pitfalls)
 *   **Slices != JS Arrays:** Slices are views into arrays. Appending to a slice can modify the original backing array if capacity remains (Mistake #25).
