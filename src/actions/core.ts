@@ -23,9 +23,7 @@ export function checkDNAStatus(cwd: string) {
   // Get global version
   let globalVersion = 'unknown';
   try {
-    const pkg = JSON.parse(
-      fs.readFileSync(path.join(STANDARDS_ROOT, 'package.json'), 'utf8'),
-    );
+    const pkg = JSON.parse(fs.readFileSync(path.join(STANDARDS_ROOT, 'package.json'), 'utf8'));
     globalVersion = pkg.version;
   } catch {
     // Ignore

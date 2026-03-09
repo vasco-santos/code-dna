@@ -92,17 +92,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'check_status',
-        description: 'Check if the repository is initialized with DNA and if standards are up to date.',
+        description:
+          'Check if the repository is initialized with DNA and if standards are up to date.',
         inputSchema: { type: 'object', properties: {} },
       },
       {
         name: 'init_context',
-        description: 'Initialize or sync repository-specific context files (architecture, idioms, devops)',
+        description:
+          'Initialize or sync repository-specific context files (architecture, idioms, devops)',
         inputSchema: { type: 'object', properties: {} },
       },
       {
         name: 'start_session',
-        description: 'Start a new DNA session with ADR and PR tracking. Supports multi-repo symlinking.',
+        description:
+          'Start a new DNA session with ADR and PR tracking. Supports multi-repo symlinking.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -128,12 +131,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'write_session_doc',
-        description: 'Write a document to the session folder with automatic versioning (v1, v2, etc.)',
+        description:
+          'Write a document to the session folder with automatic versioning (v1, v2, etc.)',
         inputSchema: {
           type: 'object',
           properties: {
             sessionId: { type: 'string', description: 'The ID of the active session' },
-            filename: { type: 'string', description: "The base filename (e.g., 'rfc.md' or 'plan')" },
+            filename: {
+              type: 'string',
+              description: "The base filename (e.g., 'rfc.md' or 'plan')",
+            },
             content: { type: 'string', description: 'The markdown content to write' },
           },
           required: ['sessionId', 'filename', 'content'],
@@ -141,7 +148,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'cleanup_session',
-        description: 'Cleanup old versions of session documents, keeping only the most recent ones.',
+        description:
+          'Cleanup old versions of session documents, keeping only the most recent ones.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -177,7 +185,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             mode: {
               type: 'string',
               enum: ['inbound', 'outbound'],
-              description: "Review mode: 'inbound' (analyzing feedback/fixing) or 'outbound' (first-pass audit)",
+              description:
+                "Review mode: 'inbound' (analyzing feedback/fixing) or 'outbound' (first-pass audit)",
             },
           },
           required: ['prLink'],
@@ -242,7 +251,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case 'start_session': {
-      const { name: sessionName, mainRepoPath, tool, externalId } = args as unknown as StartSessionArgs;
+      const {
+        name: sessionName,
+        mainRepoPath,
+        tool,
+        externalId,
+      } = args as unknown as StartSessionArgs;
       const session = startSession(cwd, sessionName, mainRepoPath, { tool, externalId });
       return {
         content: [

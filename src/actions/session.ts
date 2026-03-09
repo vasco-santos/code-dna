@@ -215,7 +215,6 @@ This file preserves the agent's internal state. Update it before ending a turn.
   };
 }
 
-
 export function listSessions(cwd: string) {
   const sessionsDir = path.join(cwd, '.dna', 'sessions');
   if (!fs.existsSync(sessionsDir)) return [];
