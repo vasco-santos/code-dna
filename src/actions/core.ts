@@ -60,6 +60,79 @@ export function checkDNAStatus(cwd: string) {
   };
 }
 
+/**
+ * Updates .gitignore and .git/info/exclude to ignore Code DNA files.
+ */
+export function updateGitHygiene(cwd: string) {
+  const results: string[] = [];
+  const linesToAdd = [
+    '.dna/',
+    'GEMINI.md',
+    '.github/copilot-instructions.md',
+    '.cursorrules',
+    '.windsurfrules',
+    '.codexrules',
+    'CLAUDE.md',
+    'AGENTS.md',
+  ];
+
+  const updateHygieneFile = (filePath: string, fileName: string) => {
+    if (!fs.existsSync(filePath)) return false;
+
+    const content = fs.readFileSync(filePath, 'utf8');
+    let updatedContent = content;
+    if (updatedContent.length > 0 && !updatedContent.endsWith('\n')) {
+      updatedContent += '\n';
+    }
+
+    let added = false;
+    linesToAdd.forEach((line) => {
+      const escapedLine = line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`^${escapedLine}$`, 'm');
+
+      if (!regex.test(updatedContent)) {
+        updatedContent += `${line}\n`;
+        added = true;
+      }
+    });
+
+    if (added) {
+      fs.writeFileSync(filePath, updatedContent);
+      results.push(`🛡️ Added Code DNA files to ${fileName}`);
+      return true;
+    }
+    return false;
+  };
+
+  // Target 1: Local .gitignore (Best for monorepos)
+  const localGitIgnore = path.join(cwd, '.gitignore');
+  if (fs.existsSync(localGitIgnore)) {
+    updateHygieneFile(localGitIgnore, '.gitignore');
+  } else {
+    // If no .gitignore exists, create one with the basics
+    fs.writeFileSync(localGitIgnore, linesToAdd.join('\n') + '\n');
+    results.push('🛡️ Created .gitignore with Code DNA exclusions');
+  }
+
+  // Target 2: .git/info/exclude (Find root if in sub-dir)
+  let currentDir = cwd;
+  let excludePath = null;
+  while (currentDir !== path.parse(currentDir).root) {
+    const potential = path.join(currentDir, '.git', 'info', 'exclude');
+    if (fs.existsSync(potential)) {
+      excludePath = potential;
+      break;
+    }
+    currentDir = path.dirname(currentDir);
+  }
+
+  if (excludePath) {
+    updateHygieneFile(excludePath, '.git/info/exclude');
+  }
+
+  return results.join('\n');
+}
+
 export function initRepo(cwd: string, mainRepoPath?: string) {
   const results: string[] = [];
   const dnaDir = path.join(cwd, '.dna');
@@ -205,42 +278,8 @@ export function initRepo(cwd: string, mainRepoPath?: string) {
   fs.writeFileSync(path.join(cwd, 'CLAUDE.md'), claudeContent);
   results.push('🤖 Updated CLAUDE.md');
 
-  // 4. Git Hygiene: Add to .git/info/exclude
-  const gitExclude = path.join(cwd, '.git', 'info', 'exclude');
-  if (fs.existsSync(gitExclude)) {
-    const content = fs.readFileSync(gitExclude, 'utf8');
-    const linesToAdd = [
-      '.dna/',
-      'GEMINI.md',
-      '.github/copilot-instructions.md',
-      '.cursorrules',
-      '.windsurfrules',
-      '.codexrules',
-      'CLAUDE.md',
-      'AGENTS.md',
-    ];
-
-    let updatedContent = content;
-    if (updatedContent.length > 0 && !updatedContent.endsWith('\n')) {
-      updatedContent += '\n';
-    }
-
-    let added = false;
-    linesToAdd.forEach((line) => {
-      const escapedLine = line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`^${escapedLine}$`, 'm');
-
-      if (!regex.test(updatedContent)) {
-        updatedContent += `${line}\n`;
-        added = true;
-      }
-    });
-
-    if (added) {
-      fs.writeFileSync(gitExclude, updatedContent);
-      results.push('🛡️ Added Code DNA files to .git/info/exclude');
-    }
-  }
+  // 4. Git Hygiene
+  results.push(updateGitHygiene(cwd));
 
   return results.join('\n');
 }
