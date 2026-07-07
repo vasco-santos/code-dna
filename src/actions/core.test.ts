@@ -37,17 +37,17 @@ describe('updateGitHygiene', () => {
   it('should find and update .git/info/exclude in parent directory', () => {
     const subDir = path.join(tmpDir, 'sub', 'dir');
     fs.mkdirSync(subDir, { recursive: true });
-    
+
     const gitInfoDir = path.join(tmpDir, '.git', 'info');
     fs.mkdirSync(gitInfoDir, { recursive: true });
     const excludePath = path.join(gitInfoDir, 'exclude');
     fs.writeFileSync(excludePath, '# initial\n');
 
     updateGitHygiene(subDir);
-    
+
     // Should have created .gitignore in subDir
     expect(fs.existsSync(path.join(subDir, '.gitignore'))).toBe(true);
-    
+
     // Should have updated .git/info/exclude in root
     const excludeContent = fs.readFileSync(excludePath, 'utf8');
     expect(excludeContent).toContain('.dna/');
