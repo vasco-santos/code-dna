@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { updateGitHygiene } from './core';
 
 export function initContext(cwd: string) {
   const contextDir = path.join(cwd, '.dna', 'context');
@@ -102,6 +103,8 @@ Maintain the session log in \`.dna/sessions/\` for every task. Before writing co
     fs.writeFileSync(agentsPath, agentsContent);
     results.push(`📝 Created AGENTS.md (AI Entry Point)`);
   }
+
+  results.push(updateGitHygiene(cwd));
 
   return results.join('\n');
 }
